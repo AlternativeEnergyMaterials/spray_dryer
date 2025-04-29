@@ -1,0 +1,79 @@
+---
+#-------THIS PORTION IS UNIQUE TO EACH TEST STAND---------#
+
+database-config:
+  token: "7NuViJKSHIc6vjvZ9I1RCdSKb8qllkVo72SfzxmQClBTNS4STQmtal8xyxdz_LVa57fWWJ30c1OcFR33aq6IDg=="
+  org-id: "880be9804b3351e0"
+  url: "http://localhost:8086" #EXCEPT THIS, THIS IS THE SAME
+
+#---------------------------------------------------------#
+
+control-box-config: #Define control box type and specifications.
+  box-type: "Pi" #Type of control box, currently supports NI and Pi.
+  mask-enabled: false
+  hostname: "stewpi"
+  username: "aem"
+  password: "AEMvyzion"
+  ssh-port: 22 #Port for the ssh connection. Currently only applicable for Pi control boxes.
+
+watchdog-config:
+  com-port: "25"
+  alert-emails: [] #[8583711073@tmomail.net]
+  alert-api-key: 'api-E55C4EF1B48A4CA2A087B98716BCF624'
+  alert-sender: 'studio_user@altenergymaterials.com'
+
+
+furnace-config: #Define default furnace pid values and furnace thermocouples.
+  integral-min: -50.0 #Minimum value for the integral portion of PID.
+  integral-max: 50.0 #Maximum value for the integral portion of PID.
+  zero-integral-on-crossover: false #When set to true, the integral portion becomes 0 when the temp crosses the setpoint.
+  ramp-rate: 5 #Rate of change for setpoint in degrees Celsius.
+  output-bias: 0 #Bias added to output in percentage of time.
+  max-output: 100 #Maximum power output for heater in percentage of on time.
+  temperature-cap: 2000 #Maximum temperature in degrees Celsius.
+  temp-safety-range: 700 #If current temperature is not within +-tsr of setpoint, safety shutoffs will apply.
+  cooling-wait-range: 10.0 #When cooling, setpoint will not drop below current temperature - cwr.
+  tuning-mode: true #When set to true, all above parameters will be tunable during the TestSuite runtime.
+  max-data: 10000 #Maximum number of datapoints that will be plotted during TestSuite runtime. Data saved in the database will not be deleted. Approximately 1 datapoint per second
+  furnaces:
+    - #Furnace 1
+      p: 5 #Constant for Proportional aspect of PID. Use 0.5
+      i: 0.0002 #Constant for Integral aspect of PID. Use 0.1 for master
+      d: 0.0 #Constant for Derivative aspect of PID.
+      identifier: 1
+      supervisor-furnace: -1
+      voltage-line: 1
+      control-thermocouples:
+        -
+          channel: "0-1"
+          mask: null
+          offset: 1000.0
+          type: "K"
+          display-name: "Cell 1 Fuel"
+          # label: "Cell 1 Fuel"
+          metric: "Temperature"
+          max-temp: 2000
+
+      extra-thermocouples:
+        -
+          channel: "0-2"
+          mask: null
+          type: "K"
+          display-name: "Cell 1 Air"
+          # label: "Cell 1 Air"
+          metric: "Temperature"
+          max-temp: 2000
+
+
+mfc-config:
+  max-data: 10000
+
+  Air 1:
+    section: 1
+    conversion-factor: 1.0
+    metric: "Flow"
+    
+  Air 2:
+    section: 2
+    conversion-factor: 1
+    metric: "Flow"

@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QStackedWidget,  QDialog, QG
 from PySide6.QtGui import QIcon, QFont, QAction
 from PySide6.QtCore import Slot, QTimer
 from widgets import CloseDialog, MultiPlotWidget, ToggleButton,  TestSelectionDialog
-from views import TemperatureView, PressureView, ProfileView, MFCView, EISView, HumidifierView, LOADBANKView, LoadCellView, BPRView
+from views import TemperatureView, ProfileView, MFCView
 from controllers import MasterController, TemperatureController
 from models import ListModel
 import yaml
@@ -11,7 +11,6 @@ from enum import Enum
 
 class HeaterType(Enum):
     FURNACE = 'furnace'
-    HUMIDIFIER = 'humidifier'
 
 class MasterView(QMainWindow):
     def __init__(self, title:str, icon: QIcon, parent:QWidget = None):
@@ -28,12 +27,11 @@ class MasterView(QMainWindow):
 
         #Initialize models.
         self._humidifier_views:ListModel[TemperatureView] = ListModel()
-        self._humidifier_controllers:ListModel[TemperatureController] = ListModel()
         self._furnace_views:ListModel[TemperatureView] = ListModel()
         self._furnace_controllers:ListModel[TemperatureController] = ListModel()
 
         #Create controller.
-        self._controller = MasterController(self._config, self._furnace_controllers, self._humidifier_controllers, self)
+        self._controller = MasterController(self._config, self._furnace_controllers, self)
         self._controller._download_data_worker.download_started.connect(self._download_started)
         self._controller._download_data_worker.download_finished.connect(self._download_finished)
 
@@ -41,32 +39,13 @@ class MasterView(QMainWindow):
         self._init_UI()
 
         #Add other pages.
-        self._pressure_view:PressureView = None
         self._mfc_view:MFCView = None
-        self._eis_view:EISView = None
-        self._loadbank_view:LOADBANKView = None
-        self._main_humidifier_view:HumidifierView = None
-        self._main_humidifier_title:str = None
         self._main_furnace_view = None
         self._main_furnace_title:str = None
-        self._loadcell_view:LoadCellView = None
-        self._plenum_view:BPRView = None
         if self._controller.temperature_reader is not None:
             self._load_heaters(HeaterType.FURNACE)
-            self._load_heaters(HeaterType.HUMIDIFIER)
-        if self._controller.pressure_reader is not None and len(self._controller.pressure_reader.pressure_models) > 0:
-            self._load_pressure()
         if self._controller.mfc_reader is not None and len(self._controller.mfc_reader.mfcs) > 0:
             self._load_mfc()
-        
-        # if 'plenum-config' in self._config and len(self._config['plenum-config']['plenums']) > 0 and self._mfc_view is not None and self._pressure_view is not None:
-        #     self._load_plenums()
-        if len(self._controller.octostats) > 0:
-            self._load_eis()
-        if len(self._controller.loadbanks) > 0:
-            self._load_loadbank()
-        if self._controller.cells is not None and len(self._controller.cells) > 0 and self._controller.cells[0] is not None:
-            self._load_loadcells()
 
         #Populate home page.
         self._populate_home()
@@ -98,16 +77,6 @@ class MasterView(QMainWindow):
         #Add furnace power button.
         self._furnace_power_button = ToggleButton(self._controller.furnace_safety_model, 'EMERGENCY STOP', 'Resume Operation', self)
         self._layout.addWidget(self._furnace_power_button,0,0,1,1)
-
-        #Add humidifier power button.
-        if self._controller.humidifier_safety_model is not None:
-            self._humidifier_power_button = ToggleButton(self._controller.humidifier_safety_model, 'Humidifier Power: ON', 'Humidifier Power: OFF', self)
-            self._layout.addWidget(self._humidifier_power_button,0,1,1,1)
-
-        #Disable power buttons if no watchdog.
-        if self._controller._watchdog is None and self._controller._control_box_type != 'Pi':
-            self._furnace_power_button.setEnabled(False)
-            self._humidifier_power_button.setEnabled(False)
 
         #Add testname input.
         self._testname_input = QLineEdit(self)
@@ -165,12 +134,7 @@ class MasterView(QMainWindow):
             sp_models = None
             rr_models = None
 
-        if self._eis_view is not None:
-            instrument_controller = self._eis_view._controller
-        else:
-            instrument_controller = None
-
-        self._profile_view = ProfileView(temp_views, mfcs, instrument_controller, target_models, sp_models, rr_models, self._main_humidifier_view, self._config, self)
+        self._profile_view = ProfileView(temp_views, mfcs, target_models, sp_models, rr_models, self._config, self)
         self._controller.pause_profile.connect(self._pause_profile)
         self._layout.addWidget(self._profile_view,1,6,1,4)
 
@@ -262,48 +226,11 @@ class MasterView(QMainWindow):
                     layout.addWidget(view)
                 title = heater_type.capitalize() + 's' if num_heaters > 1 else heater_type.capitalize()
             
-            if heater_type == 'humidifier':
-                if self._mfc_view is None:
-                    target_models = {}
-                    sp_models = {}
-                    mfcs = {}
-                else:
-                    target_models = self._mfc_view.controller.target_models
-                    sp_models = self._mfc_view.controller.sp_models
-                    mfcs = self._mfc_view.controller._mfcs
-                    
-                writer = self._controller.voltage_writer
-                self._main_humidifier_view = HumidifierView(page,
-                                                 self._humidifier_controllers,
-                                                 self._config['humidifier-pump-config'],
-                                                 writer,
-                                                 mfcs,
-                                                 target_models,
-                                                 sp_models,
-                                                 self)
-                self._main_humidifier_title = title
-                self._add_page(self._main_humidifier_view, title)
-            else:
-                self._main_furnace_view = page
-                self._main_furnace_title = title
-                self._add_page(page, title)
+            
+            self._main_furnace_view = page
+            self._main_furnace_title = title
+            self._add_page(page, title)
 
-    def _load_pressure(self):
-        if self._controller.pressure_reader is not None:
-            if 'bpr-config' in self._config:
-                bpr_view = BPRView(self._controller._bpr,
-                                    [self._controller.pressure_reader.channel_model_map[channel] for channel in self._config['bpr-config']['control-transducers']],
-                                    self._controller.pressure_reader.time_model,self._config['bpr-config'],self)
-            else:
-                bpr_view = None
-            self._pressure_view = PressureView(bpr_view,self._controller.pressure_reader.time_model,
-                                self._controller.pressure_reader.pressure_models,
-                                self._controller.pressure_reader.slope_models,
-                                self._controller.pressure_reader.intercept_models,
-                                self._controller.pressure_reader.pressure_display_names,
-                                self._config['pressure-config'],'Pressure',
-                                self)
-            self._add_page(self._pressure_view, 'Pressure')
 
     def _load_mfc(self):
         self._mfc_view = MFCView(self._controller.mfc_reader.time_model,
@@ -312,40 +239,6 @@ class MasterView(QMainWindow):
                     self)
         self._mfc_view.controller._ramp_worker.flow_deviation.connect(self._controller._handle_flow_deviations)
         self._add_page(self._mfc_view, 'Gas Flow')
-
-    # def _load_plenums(self):
-    #     plenum_views = []
-    #     for i, plenum in enumerate(self._config['plenum-config']['plenums']):
-    #         if plenum is not None:
-    #             plenum_view = PlenumView(self._controller.pressure_reader.time_model,
-    #                                         [self._controller.pressure_reader.channel_model_map[channel] for channel in plenum['control-transducers']],
-    #                                         [self._controller.pressure_reader.channel_model_map[channel] for channel in plenum['tracking-transducers']],
-    #                                         [self._controller.pressure_reader.channel_name_map[channel] for channel in plenum['control-transducers']],
-    #                                         [self._controller.pressure_reader.channel_name_map[channel] for channel in plenum['tracking-transducers']],
-    #                                         [self._mfc_view.controller.name_target_model_map[name] for name in plenum['mfcs']],
-    #                                         self._config['plenum-config'],
-    #                                         plenum['p'], plenum['i'], plenum['d'],
-    #                                         'Plenum ' + str(i), self)
-    #             plenum_views.append(plenum_view)
-    #     self._plenum_view = BPRView(plenum_views,self._controller._bpr,
-    #                                 [self._controller.pressure_reader.channel_model_map[channel] for channel in self._config['plenum-config']['control-transducers']],
-    #                                 self._controller.pressure_reader.time_model,
-    #                                 self._config['plenum-config'],self)
-    #     self._plenum_view._controller._duty_cycle_worker.safety_shutoff.connect(self._controller._emit_bpr_alerts)
-    #     self._add_page(self._plenum_view, 'Plenum')
-
-    def _load_eis(self):
-        self._eis_view = EISView(self._controller._ivium, self._controller.octostats, 'EIS', self)
-        self._add_page(self._eis_view, 'EIS')
-
-    def _load_loadbank(self):
-        lb_keys = list(self._config['loadbank-config']['loadbanks'].keys())
-        self._loadbank_view = LOADBANKView(self._controller.loadbanks, 'Loadbank',self._config['loadbank-config']['loadbanks'][lb_keys[0]], self)
-        self._add_page(self._loadbank_view, 'Loadbank')
-
-    def _load_loadcells(self):
-        self._loadcell_view = LoadCellView(self._controller.cells, self._controller._ssh_client, self)
-        self._add_page(self._loadcell_view, 'Load Cells')
 
     def _download_started(self):
         self._download_data_button.setDisabled(True)
@@ -375,14 +268,6 @@ class MasterView(QMainWindow):
             self._profile_view.close()
             for view in self._furnace_views:
                 view.close()
-            for view in self._humidifier_views:
-                view.close()
-            if self._pressure_view is not None:
-                self._pressure_view.close()
             if self._mfc_view is not None:
                 self._mfc_view.close()
-            if self._main_humidifier_view is not None:
-                self._main_humidifier_view.close()
-            if self._loadcell_view is not None:
-                self._loadcell_view.close()
             self._controller.close() #Close this last.

@@ -82,10 +82,6 @@ class TemperatureReader:
             for temperature, model in zip(temperatures[furnace_tc_index:humidifier_tc_index], sum(self._all_furnace_models, [])):
                 model.append(temperature)
 
-            #Parse humidifier temperatures.
-            for temperature, model in zip(temperatures[humidifier_tc_index:], sum(self._all_humidifier_models, [])):
-                model.append(temperature)
-
             #Append read time of temperatures.
             #NOTE: The read time *must* only be updated after all other temperature models are updated.
             self._furnace_tc_time_model.append(read_time.timestamp())
@@ -138,52 +134,3 @@ class TemperatureReader:
     @property
     def furnace_control_map(self) -> dict[ListModel[float],bool]:
         return self._furnace_control_map
-
-    @property
-    def all_humidifier_tc_display_names(self) -> list[list[str]]:
-        """Returns a list of lists containing display names for each humidifier thermocouple."""
-        return [[thermocouple['display-name'] for thermocouple in tcs] for tcs in self._all_humidifier_tcs]
-    
-    @property
-    def all_humidifier_tc_display_names_unordered(self) -> list[str]:
-        """Returns a list of display names for each humidifier thermoucouple. All control thermocouples preceed all extra thermocouples."""
-        return [thermocouple['display-name'] for thermocouple in sum(self._all_humidifier_tcs,[])]
-    
-    @property
-    def all_humidifier_tc_metrics(self) -> list[list[str]]:
-        """Returns a list of lists containing metrics for each humidifier thermocouple."""
-        return [[thermocouple['metric'] for thermocouple in tcs] for tcs in self._all_humidifier_tcs]
-    
-    @property
-    def all_humidifier_tc_metrics_unordered(self) -> list[str]:
-        """Returns a list of metrics for each humidifier thermoucouple. All control thermocouples preceed all extra thermocouples."""
-        return [thermocouple['metric'] for thermocouple in sum(self._all_humidifier_tcs,[])]
-    
-    @property
-    def all_humidifier_tc_max_temps(self) -> list[list[str]]:
-        """Returns a list of lists containing max temps for each humidifier thermocouple."""
-        return [[thermocouple['max-temp'] for thermocouple in tcs] for tcs in self._all_humidifier_tcs]
-    
-    @property
-    def all_humidifier_tc_max_temps_unordered(self) -> list[str]:
-        """Returns a list of max_temps for each humidifier thermoucouple. All control thermocouples preceed all extra thermocouples."""
-        return [thermocouple['max-temp'] for thermocouple in sum(self._all_humidifier_tcs,[])]
-    
-    @property
-    def all_humidifier_models(self) -> list[list[ListModel[float]]]:
-        """Returns a list of lists containing ListModels holding temperatures from humidifier control thermocouples."""
-        return self._all_humidifier_models
-    
-    @property
-    def all_humidifier_models(self) -> list[list[ListModel[float]]]:
-        """Returns a list of lists containing ListModels holding temperatures from humidifier extra thermocouples"""
-        return self._all_humidifier_models
-    
-    @property
-    def humidifier_tc_time_model(self) -> ListModel[datetime]:
-        """Returns a ListModel containing the time each humidifier temperature measurement was taken."""
-        return self._humidifier_tc_time_model
-    
-    @property
-    def humidifier_control_map(self) -> dict[ListModel[float],bool]:
-        return self._humidifier_control_map

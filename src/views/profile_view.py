@@ -9,10 +9,8 @@ from devices import ElFlowMFC
 from widgets import ToggleButton, ProfileSelectionDialog, ProfileSaveDialog, TimeSelectionDialog
 import time
 import yaml
-from config import PROFILE_PATH
-#
 import serial
-
+PROFILE_PATH = [] #TODO, create a path location in config
 class TemperatureStep(Step):
     def __init__(self, 
                  temp_view:TemperatureView, 
