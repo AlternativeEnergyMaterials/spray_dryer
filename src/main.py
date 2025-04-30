@@ -13,10 +13,8 @@ OG_STDERR = sys.stderr #Save the original stderr output for when sys.stderr gets
 OG_STDOUT = sys.stdout #Save the original stdout output for when sys.stdout gets overridden.
 
 __icon_path__ = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'AEMlogo.ico') #Icon path is for pyinstaller file structure.
-__version__ = '2.1.4'
-#Full rework example: 1.5.3 -> 2.0.0
-#New feature example: 1.5.3 -> 1.6.0
-#Bug fix/addition to new feature example: 1.5.3 -> 1.5.4
+__version__ = '1.0.0'
+
 
 class IOCap(StringIO):
     def __init__(self, og_output):

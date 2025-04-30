@@ -21,6 +21,7 @@ watchdog-config:
   alert-emails: [] #[8583711073@tmomail.net]
   alert-api-key: 'api-E55C4EF1B48A4CA2A087B98716BCF624'
   alert-sender: 'studio_user@altenergymaterials.com'
+  alert-emails: 'dustin.mclarty@altenergymaterials.com'
 
 
 furnace-config: #Define default furnace pid values and furnace thermocouples.

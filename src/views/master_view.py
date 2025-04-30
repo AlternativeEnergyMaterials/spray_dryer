@@ -21,7 +21,7 @@ class MasterView(QMainWindow):
         self.setWindowIcon(self._icon)
 
         #Load config.
-        config_path = os.path.expanduser("~") + "\\AppData\\Local\\AEM TestSuite\\config.yaml"
+        config_path = os.path.expanduser("~") + "\\AppData\\Local\\AEM SprayDryer\\config.yaml"
         with open(config_path) as file:
             self._config = yaml.safe_load(file)
 
