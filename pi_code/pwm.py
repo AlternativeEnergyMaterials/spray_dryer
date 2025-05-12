@@ -1,13 +1,10 @@
 import os
 import socket
 import threading
-import yaml
 import time
-import SM16relind
-import lib8mosind
+import serial
 
 SOCKET_PATH = '/tmp/pwm.sock'
-CONFIG_PATH = os.path.join(os.path.expanduser('~'),'config.yaml')
 
 ITERATIONS = 100
 FREQUENCY = 0.01 #seconds
@@ -17,38 +14,28 @@ OFF = 0
 
 lock = threading.Lock()
 
-with open(CONFIG_PATH) as file:
-    config:dict[int,list[int]] = yaml.safe_load(file)
 pwm_map:dict[int,int] = {} #[channel:pwm] where pwm is integer between 0 and 100 (percentage of ontime)
 
-relay_boards:dict[SM16relind.SM16relind] = {}
-for addr in config['relay_addresses']:
-    relay_boards[addr] = SM16relind.SM16relind(addr)
-
 def loop():
+    serPort = serial.Serial('ttyACM0',19200,timeout = 1)
     while True:
         lock.acquire()
         current_pwm_map = pwm_map.copy()
         lock.release()
-
+        
         #Turn on all relays/mosfets before pwm loop
         for channel in pwm_map.keys():
             if current_pwm_map[channel] > 0:
-                if config[channel][0] == 0:
-                    lib8mosind.set(config[channel][1],config[channel][2],ON)
-                elif config[channel][0] == 1:
-                    relay_boards[config[channel][1]].set(config[channel][2],ON)
+                serPort.write('relay on ' +str(channel) + '\n\r')
 
         #pwm loop to turn off relays after specified time
         for i in range(ITERATIONS+1): #loop from 0 to iterations (inclusive)
             time_passed = i/ITERATIONS * 100
             for channel in current_pwm_map.keys():
                 if time_passed > current_pwm_map[channel]: #If percentage of on time has passed
-                    if config[channel][0] == 0:
-                        lib8mosind.set(config[channel][1],config[channel][2],OFF)
-                    elif config[channel][0] == 1:
-                        relay_boards[config[channel][1]].set(config[channel][2],OFF)
+                    serPort.write('relay off ' +str(channel) + '\n\r')
             time.sleep(FREQUENCY)
+
 
 def handle_command(cmd:str):
     if 'pwm' in cmd:

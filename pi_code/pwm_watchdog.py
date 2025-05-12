@@ -1,18 +1,8 @@
-import os
-import yaml
-import SM16relind
-import lib8mosind
+import serial
 import socket
 import time
 
 SOCKET_PATH = '/tmp/pwm.sock'
-
-OFF = 0
-
-CONFIG_PATH = os.path.join(os.path.expanduser('~'),'config.yaml')
-
-with open(CONFIG_PATH) as file:
-    relay_map:dict[int,str] = yaml.safe_load(file)
 
 while True:
     try:
@@ -27,8 +17,8 @@ while True:
 
     if 'is_alive' not in response:
         print('shutting off all relays')
-        for mosfet in relay_map['mosfet_addresses']:
-            lib8mosind.set_all(mosfet, OFF)
-        for relay in relay_map['relay_addresses']:
-            SM16relind.SM16relind(relay).set_all(OFF)
+        serPort = serial.Serial('ttyACM0',19200,timeout = 1)
+        for i in range(8):
+            serPort.write('relay off ' +str(i) + '\n\r')
+        serPort.close()
         time.sleep(1)

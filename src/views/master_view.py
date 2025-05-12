@@ -5,7 +5,7 @@ from PySide6.QtCore import Slot, QTimer
 from widgets import CloseDialog, MultiPlotWidget, ToggleButton,  TestSelectionDialog
 from views import TemperatureView, ProfileView, MFCView
 from controllers import MasterController, TemperatureController
-from models import ListModel
+from models import ListModel, SinglePointModel
 import yaml
 from enum import Enum
 
@@ -26,7 +26,6 @@ class MasterView(QMainWindow):
             self._config = yaml.safe_load(file)
 
         #Initialize models.
-        self._humidifier_views:ListModel[TemperatureView] = ListModel()
         self._furnace_views:ListModel[TemperatureView] = ListModel()
         self._furnace_controllers:ListModel[TemperatureController] = ListModel()
 
@@ -34,6 +33,7 @@ class MasterView(QMainWindow):
         self._controller = MasterController(self._config, self._furnace_controllers, self)
         self._controller._download_data_worker.download_started.connect(self._download_started)
         self._controller._download_data_worker.download_finished.connect(self._download_finished)
+        
 
         #Initialize UI elements.
         self._init_UI()
@@ -78,6 +78,23 @@ class MasterView(QMainWindow):
         self._furnace_power_button = ToggleButton(self._controller.furnace_safety_model, 'EMERGENCY STOP', 'Resume Operation', self)
         self._layout.addWidget(self._furnace_power_button,0,0,1,1)
 
+        #Add pump flow input.
+        self._pump_flow_input = QLineEdit(self)
+        self._pump_flow_input.setPlaceholderText('Pump_flow')
+        self._layout.addWidget(self._pump_flow_input,0,1,1,1)
+
+        self._purge_freq_input = QLineEdit(self)
+        self._purge_freq_input.setPlaceholderText('purge_freq')
+        self._layout.addWidget(self._purge_freq_input,0,2,1,1)
+
+        self._purge_duration_input = QLineEdit(self)
+        self._purge_duration_input.setPlaceholderText('purge_duration')
+        self._layout.addWidget(self._purge_duration_input,0,3,1,1)
+
+        self._run_pump = ToggleButton(self._controller._pumps_active,'Run Pump', 'Stop Pump')
+        self._run_pump.connect(self._set_flow)
+        self._layout.addWidget(self._run_pump,0,4,1,1)
+
         #Add testname input.
         self._testname_input = QLineEdit(self)
         self._testname_input.setPlaceholderText('Test Name')
@@ -110,7 +127,7 @@ class MasterView(QMainWindow):
         #Add multiplot view.
         self._multi_plot = MultiPlotWidget(self)
         plots = []
-        for view in self._furnace_views + self._humidifier_views:
+        for view in self._furnace_views:
             plots.append(view.plot)
         if self._mfc_view is not None:
             plots += self._mfc_view.plots
@@ -118,7 +135,7 @@ class MasterView(QMainWindow):
         self._layout.addWidget(self._multi_plot,1,0,1,6)
 
         #Add profile view.
-        temp_views = self._furnace_views + self._humidifier_views
+        temp_views = self._furnace_views
         if len(temp_views) < 1:
             temp_views = None
 
@@ -137,6 +154,12 @@ class MasterView(QMainWindow):
         self._profile_view = ProfileView(temp_views, mfcs, target_models, sp_models, rr_models, self._config, self)
         self._controller.pause_profile.connect(self._pause_profile)
         self._layout.addWidget(self._profile_view,1,6,1,4)
+
+    def _set_flow(self):
+        self._controller._pump_flow.data = int(self._pump_flow_input.text()) #flow in mL/s
+        self._controller._purge_freq.data = float(self._purge_freq_input.text())
+        self._controller._purge_duration.data = float(self._purge_duration_input.text())
+        # self._controller._pumps_active.data = True
 
     @Slot()
     def _start_recording(self):

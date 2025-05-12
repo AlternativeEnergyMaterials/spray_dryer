@@ -319,34 +319,34 @@ class MasterController(QObject):
     check_influx = Signal()
     pause_profile = Signal()
 
-    def __init__(self, config:dict, furnace_controllers:ListModel[TemperatureController],
-                 humidifier_controllers:ListModel[TemperatureController], parent:QObject = None):
+    def __init__(self, config:dict, furnace_controllers:ListModel[TemperatureController], parent:QObject = None):
         """config - Dictionary representing the full config file."""
         super().__init__(parent=parent)
         self._config = config
         self._furnace_controllers = furnace_controllers
-        self._humidifier_controllers = humidifier_controllers
         self._control_box_type = self._config['control-box-config']['box-type']
         self._control_box = None
         self._read_client = None
         self._write_client = None
         self._temperature_reader = None
         self._voltage_writer = None
-        self._relay_writer = None
-        self._pressure_reader = None
         self._mfc_reader = None
         self._watchdog = None
         self._watchdog_worker = None
         self._watchdog_thread = None
-        self._cells = None
-        self._ivium = None
-        self._bpr = None
-        self._bpr_step_size = None
         self._tc_restart_counter:int = 0
-        self._pc_restart_counter:int = 0
         self._fc_restart_counter:int = 0
         self._alert_emails = self._config['watchdog-config']['alert-emails']
         self._smpt_client = Smtp2goClient(api_key=self._config['watchdog-config']['alert-api-key'])
+        self._t_solid_on = None
+        self._t_purge_on = None
+        self._pumps_active = SinglePointModel(bool(True))
+        self._pump_flow = SinglePointModel(float(0.0))
+        self._purge_freq = SinglePointModel(float(0.0))
+        self._purge_duration = SinglePointModel(float(0.0))
+        self._solid_line = []
+        self._purge_line = []
+
 
 
         #Create control box and all readers/writers.
@@ -389,10 +389,6 @@ class MasterController(QObject):
         #Initialize models.
         self._furnace_safety_model:SinglePointModel[bool] = SinglePointModel(True)
         self._furnace_safety_model.data_changed.connect(self._handle_estop_press)
-        if self._control_box_type == 'NI':
-            self._humidifier_safety_model:SinglePointModel[bool] = SinglePointModel(True)
-        else:
-            self._humidifier_safety_model = None
         self._is_recording_model:SinglePointModel[bool] = SinglePointModel(False)
         self._test_name_model:SinglePointModel[str] = SinglePointModel('default-test')
 
@@ -424,8 +420,6 @@ class MasterController(QObject):
             self._watchdog = serial.Serial(port=comport)
         except:
             self._furnace_safety_model.data = False
-            if not self._humidifier_safety_model is None:
-                self._humidifier_safety_model.data = False
             self._watchdog = None
             print('WARNING: Watchdog not found.')
         else:
@@ -455,18 +449,9 @@ class MasterController(QObject):
     def mfc_reader(self) -> MFCReader:
         return self._mfc_reader
 
-
-    @property
-    def cells(self) -> list[dict]:
-        return self._cells
-
     @property
     def furnace_safety_model(self) -> SinglePointModel[bool]:
         return self._furnace_safety_model
-    
-    @property
-    def humidifier_safety_model(self) -> SinglePointModel[bool]:
-        return self._humidifier_safety_model
 
     @property
     def is_recording_model(self) -> SinglePointModel[bool]:
@@ -518,7 +503,6 @@ class MasterController(QObject):
                 else:
                     print('temp collection thread failed 3 times, declaring unsafe')
                     self._furnace_safety_model.data = False
-                    self._humidifier_safety_model.data = False
                 self._tc_restart_counter += 1
             
             if self._temp_collection_thread.isRunning():
@@ -549,6 +533,8 @@ class MasterController(QObject):
                 print('restarting flow collection thread')
                 self._flow_collection_thread.start()
 
+        self._pump_cycle(read_time)
+
         #Ensure influx is running.
         if not self._influx_check_worker.is_running:
             self.check_influx.emit()
@@ -559,9 +545,6 @@ class MasterController(QObject):
     def _initialize_data_collection(self):
         if self._temperature_reader is not None:
             self._initialize_temp_collection()
-
-        if self._pressure_reader is not None:
-            self._initialize_pressure_collection()
 
         if self._mfc_reader is not None:
             self._initialize_flow_collection()
@@ -585,6 +568,36 @@ class MasterController(QObject):
         self.request_flow_data.connect(self._flow_collection_worker.collect_data)
         self._flow_collection_thread.start()
 
+    def _pump_cycle(self,tn):
+        if self._t_solid_on is None and self._pumps_active:
+            self._t_solid_on = tn
+            self._t_purge_on = tn - self._purge_duration-1
+        if (tn-self._t_solid_on)> self._purge_freq:
+            self._t_purge_on = tn
+            self._t_solid_on = tn+self._purge_duration
+            val = min(100,max(0,self._pump_flow*self._purge_conversion))# convert to duty cycle
+            for l in self._solid_line:
+                self._voltage_writer.write(l,0) #write relay_)cahannel and % on
+            for l in self._purge_line:
+                self._voltage_writer.write(l,val) #write relay_)cahannel and % on            
+        if (tn-self._t_purge_on)> self._purge_duration:
+            self._t_solid_on = tn
+            self._t_purge_on = tn + self._purge_freq
+            val = min(100,max(0,self._pump_flow*self._pump_conversion))# convert to duty cycle
+            for l in self._purge_line:
+                self._voltage_writer.write(l,0) #write relay_)cahannel and % on            
+            for l in self._solid_line:
+                self._voltage_writer.write(l,val) #write relay_)cahannel and % on
+
+    def _init_pumps(self,config):
+        for pump in config['pump-config']['pumps']:
+            if 'solids' in pump['display-name']:
+                self._pump_conversion = 100/pump['full-flow']
+                self._solid_line.append(pump['voltage-line'])
+            elif 'purge' in pump['display-name']:
+                self._purge_conversion = 100/pump['full-flow']
+                self._purge_line.append(pump['voltage-line'])
+
     @Slot()
     def restart_tcreader(self):
         print('restarting tcreader')
@@ -600,7 +613,6 @@ class MasterController(QObject):
     @Slot()
     def _turn_off_heaters(self):
         self._furnace_safety_model.data = False
-        self._humidifier_safety_model.data = False
 
     def send_message(self, subject:str, text:str):
         if len(self._alert_emails) > 0:

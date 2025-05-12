@@ -50,8 +50,7 @@ furnace-config: #Define default furnace pid values and furnace thermocouples.
           mask: null
           offset: 1000.0
           type: "K"
-          display-name: "Cell 1 Fuel"
-          # label: "Cell 1 Fuel"
+          display-name: "Upper Dryer"
           metric: "Temperature"
           max-temp: 2000
 
@@ -60,8 +59,7 @@ furnace-config: #Define default furnace pid values and furnace thermocouples.
           channel: "0-2"
           mask: null
           type: "K"
-          display-name: "Cell 1 Air"
-          # label: "Cell 1 Air"
+          display-name: "Lower Dryer"
           metric: "Temperature"
           max-temp: 2000
 
@@ -78,3 +76,14 @@ mfc-config:
     section: 2
     conversion-factor: 1
     metric: "Flow"
+
+pump-config:
+  pumps:
+    -
+      display-name: 'solids pump'
+      full-flow: 200
+      voltage-line: 2
+    -
+      display-name: 'purge pump'
+      full-flow: 200
+      voltage-line: 2
