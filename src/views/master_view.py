@@ -1,5 +1,5 @@
 import os
-from PySide6.QtWidgets import QMainWindow, QWidget, QStackedWidget,  QDialog, QGridLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton
+from PySide6.QtWidgets import QMainWindow, QWidget, QStackedWidget,  QDialog, QGridLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QLabel
 from PySide6.QtGui import QIcon, QFont, QAction
 from PySide6.QtCore import Slot, QTimer
 from widgets import CloseDialog, MultiPlotWidget, ToggleButton,  TestSelectionDialog
@@ -79,20 +79,33 @@ class MasterView(QMainWindow):
         self._layout.addWidget(self._furnace_power_button,0,0,1,1)
 
         #Add pump flow input.
+        self._pump_flow_label = QLabel(self)
+        self._pump_flow_label.setText('Pump Flow (mL/s)')
+        self._layout.addWidget(self._pump_flow_label,0,1,1,1)
+
         self._pump_flow_input = QLineEdit(self)
-        self._pump_flow_input.setPlaceholderText('Pump_flow')
-        self._layout.addWidget(self._pump_flow_input,0,1,1,1)
+        self._pump_flow_input.setText('0.0')
+        self._layout.addWidget(self._pump_flow_input,1,1,1,1)
+
+        self._purge_freq_label = QLabel(self)
+        self._purge_freq_label.setText('Purge Frequency (s)')
+        self._layout.addWidget(self._purge_freq_label,0,2,1,1)
 
         self._purge_freq_input = QLineEdit(self)
-        self._purge_freq_input.setPlaceholderText('purge_freq')
-        self._layout.addWidget(self._purge_freq_input,0,2,1,1)
+        self._purge_freq_input.setText('0.0')
+        self._layout.addWidget(self._purge_freq_input,1,2,1,1)
+
+        self._purge_duration_label = QLabel(self)
+        self._purge_duration_label.setText('Purge Duration (s)')
+        self._layout.addWidget(self._purge_duration_label,0,3,1,1)
 
         self._purge_duration_input = QLineEdit(self)
-        self._purge_duration_input.setPlaceholderText('purge_duration')
-        self._layout.addWidget(self._purge_duration_input,0,3,1,1)
+        self._purge_duration_input.setText('0.0')
+        self._layout.addWidget(self._purge_duration_input,1,3,1,1)
 
-        self._run_pump = ToggleButton(self._controller._pumps_active,'Run Pump', 'Stop Pump')
-        self._run_pump.connect(self._set_flow)
+        self._run_pump = QPushButton()
+        self._run_pump.setText('Run Pump')
+        self._run_pump.clicked.connect(self._set_flow)
         self._layout.addWidget(self._run_pump,0,4,1,1)
 
         #Add testname input.
@@ -132,7 +145,7 @@ class MasterView(QMainWindow):
         if self._mfc_view is not None:
             plots += self._mfc_view.plots
         self._multi_plot.set_plots(plots)
-        self._layout.addWidget(self._multi_plot,1,0,1,6)
+        self._layout.addWidget(self._multi_plot,2,0,1,6)
 
         #Add profile view.
         temp_views = self._furnace_views
@@ -153,13 +166,18 @@ class MasterView(QMainWindow):
 
         self._profile_view = ProfileView(temp_views, mfcs, target_models, sp_models, rr_models, self._config, self)
         self._controller.pause_profile.connect(self._pause_profile)
-        self._layout.addWidget(self._profile_view,1,6,1,4)
+        self._layout.addWidget(self._profile_view,2,6,1,4)
 
     def _set_flow(self):
-        self._controller._pump_flow.data = int(self._pump_flow_input.text()) #flow in mL/s
+        self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
         self._controller._purge_freq.data = float(self._purge_freq_input.text())
         self._controller._purge_duration.data = float(self._purge_duration_input.text())
-        # self._controller._pumps_active.data = True
+        if  self._run_pump.text() == 'Run Pump':
+            self._controller._pumps_active.data = True
+            self._run_pump.setText('Stop Pump')
+        elif self._run_pump.text() == 'Stop Pump':
+            self._controller._pumps_active.data = False
+            self._run_pump.setText('Run Pump')
 
     @Slot()
     def _start_recording(self):
@@ -210,7 +228,7 @@ class MasterView(QMainWindow):
                                        all_models[i],
                                        control_map,
                                        all_names[i],
-                                       self._controller.voltage_writer,
+                                       self._controller._voltage_writer,
                                        self._config[heater_type + '-config'][heater_type + 's'][i]['identifier'],
                                        self._config[heater_type + '-config'][heater_type + 's'][i]['voltage-line'],
                                        self._config[heater_type + '-config'][heater_type + 's'][i]['supervisor-furnace'],

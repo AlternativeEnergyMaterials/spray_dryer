@@ -24,7 +24,6 @@ BUCKET = 'TESTS' #Write bucket for influx data.
 INFLUX_FILE = os.path.expanduser('~') + '\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\startInflux.vbs'
 TESTS_PATH = os.path.expanduser('~') + '\\AppData\\Local\\AEM TestSuite\\Tests\\'
 
-FIRST_RELAY_SIG = bytearray([0x03, 0x02, 0x02, 0x05, 0x07]) #signal to reset watchdog timer for first relay (humidifier)
 SECOND_RELAY_SIG = bytearray([0x04, 0x07, 0x03, 0x08, 0x02]) #signal to reset watchdog timer for second relay (furnace)
 PI_RELAY_SIG = b'reset\n'
 PI_ESTOP_SIG = b'check_estop\n'
@@ -123,16 +122,12 @@ class CheckInfluxWorker(QObject):
 
 class WatchdogWorker(QObject):
     """A worker object to send watchdog signals."""
-    def __init__(self, watchdog:serial.Serial, furnace_safety_model:SinglePointModel[bool], humidifier_safety_model:SinglePointModel[bool], parent:QObject = None):
+    def __init__(self, watchdog:serial.Serial, furnace_safety_model:SinglePointModel[bool], parent:QObject = None):
         super().__init__(parent=parent)
         self._watchdog = watchdog
         self._furnace_safety_model = furnace_safety_model
-        self._humidifier_safety_model = humidifier_safety_model
-
     @Slot()
     def signal_watchdog(self):
-        if self._humidifier_safety_model.data:
-            self._write_watchdog(FIRST_RELAY_SIG)
         if self._furnace_safety_model.data:
             self._write_watchdog(SECOND_RELAY_SIG)
 
@@ -181,8 +176,7 @@ class TempCollectionWorker(QObject):
 
     """A worker object to handle temperature data collection."""
     def __init__(self, temp_reader:TemperatureReader, test_name_model:SinglePointModel[str], is_recording_model:SinglePointModel[bool],
-                 write_api:WriteApi, furnace_safety_model:SinglePointModel[bool], humidifier_safety_model:SinglePointModel[bool],
-                 furnace_controllers:ListModel[TemperatureController], humidifier_controllers:ListModel[TemperatureController], parent:QObject = None):
+                 write_api:WriteApi, furnace_safety_model:SinglePointModel[bool], furnace_controllers:ListModel[TemperatureController],  parent:QObject = None):
         super().__init__(parent=parent)
         self._temp_reader = temp_reader
         self._is_running = False
@@ -190,9 +184,7 @@ class TempCollectionWorker(QObject):
         self._is_recording_model = is_recording_model
         self._write_api = write_api
         self._furnace_safety_model = furnace_safety_model
-        self._humidifier_safety_model = humidifier_safety_model
         self._furnace_controllers = furnace_controllers
-        self._humidifier_controllers = humidifier_controllers
         self._bad_temp_reads:int = 0
         self._temp_restart_count:int = 0
 
@@ -206,8 +198,7 @@ class TempCollectionWorker(QObject):
 
         #Collect temperature data.
         try:
-            furnace_temps, humidifier_temps = self._temp_reader.read(read_time)
-            temps = furnace_temps + humidifier_temps
+            furnace_temps,= self._temp_reader.read(read_time)
 
             #Check if any temps are too hot.
             if self._furnace_safety_model.data:
@@ -216,22 +207,16 @@ class TempCollectionWorker(QObject):
                         self._furnace_safety_model.data = False
                         print('Shutting off power due to ' + name + ' overheating at ' + str(temp) + 'C.')
                         break
-            if (self._humidifier_safety_model is not None and self._humidifier_safety_model.data) or (self._humidifier_safety_model is None and self._furnace_safety_model.data):
-                for max_temp, name, temp in zip(self._temp_reader.all_humidifier_tc_max_temps_unordered, self._temp_reader.all_humidifier_tc_display_names_unordered, humidifier_temps):
-                    if temp > max_temp:
-                        self._humidifier_safety_model.data = False
-                        print('Shutting off power due to ' + name + ' overheating at ' + str(temp) + 'C.')
-                        break
 
             #Record temp data.
             if self._is_recording_model.data:
-                labels = self._temp_reader.all_furnace_tc_display_names_unordered + self._temp_reader.all_humidifier_tc_display_names_unordered
-                metrics = self._temp_reader.all_furnace_tc_metrics_unordered + self._temp_reader.all_humidifier_tc_metrics_unordered
-                for label, metric, temp in zip(labels, metrics, temps):
+                labels = self._temp_reader.all_furnace_tc_display_names_unordered 
+                metrics = self._temp_reader.all_furnace_tc_metrics_unordered
+                for label, metric, temp in zip(labels, metrics, furnace_temps):
                     self._push_influx(label, metric, temp, read_time)
 
                 #Record controller data.
-                for controller in self._furnace_controllers + self._humidifier_controllers:
+                for controller in self._furnace_controllers:
                     controller:TemperatureController
                     if controller.setpoint_model.data is not None:
                         self._push_influx(controller.name, 'Setpoint', controller.setpoint_model.data, read_time)
@@ -250,7 +235,6 @@ class TempCollectionWorker(QObject):
                 self._temp_restart_count += 1
             elif self._temp_restart_count < 3:
                 self._furnace_safety_model.data = False
-                self._humidifier_safety_model.data = False
                 self._temp_restart_count += 1
 
         self._is_running = False
@@ -347,6 +331,7 @@ class MasterController(QObject):
         self._solid_line = []
         self._purge_line = []
 
+        self._init_pumps(self._config)
 
 
         #Create control box and all readers/writers.
@@ -427,7 +412,7 @@ class MasterController(QObject):
             if self._control_box_type == 'Pi':
                 self._watchdog_worker = PiWatchdogWorker(self._control_box, self._watchdog, self._furnace_safety_model)
             else:
-                self._watchdog_worker = WatchdogWorker(self._watchdog, self.furnace_safety_model, self.humidifier_safety_model)
+                self._watchdog_worker = WatchdogWorker(self._watchdog, self.furnace_safety_model)
             self._watchdog_worker.moveToThread(self._watchdog_thread)
             self._watchdog_thread.finished.connect(self._watchdog_worker.deleteLater)
             self.request_watchdog.connect(self._watchdog_worker.signal_watchdog)
@@ -552,8 +537,8 @@ class MasterController(QObject):
     def _initialize_temp_collection(self):
         self._temp_collection_thread = QThread(self)
         self._temp_collection_worker = TempCollectionWorker(self.temperature_reader, self.test_name_model, self.is_recording_model,
-                                                            self._write_api, self.furnace_safety_model, self.humidifier_safety_model,
-                                                            self._furnace_controllers, self._humidifier_controllers)
+                                                            self._write_api, self.furnace_safety_model,
+                                                            self._furnace_controllers)
         self._temp_collection_worker.moveToThread(self._temp_collection_thread)
         self._temp_collection_worker.temp_restart_sig.connect(self.restart_tcreader)
         self._temp_collection_thread.finished.connect(self._temp_collection_worker.deleteLater)
@@ -571,19 +556,19 @@ class MasterController(QObject):
     def _pump_cycle(self,tn):
         if self._t_solid_on is None and self._pumps_active:
             self._t_solid_on = tn
-            self._t_purge_on = tn - self._purge_duration-1
-        if (tn-self._t_solid_on)> self._purge_freq:
+            self._t_purge_on = tn - self._purge_duration.data-1
+        if (tn-self._t_solid_on).total_seconds()> self._purge_freq.data:
             self._t_purge_on = tn
-            self._t_solid_on = tn+self._purge_duration
-            val = min(100,max(0,self._pump_flow*self._purge_conversion))# convert to duty cycle
+            self._t_solid_on = tn+self._purge_duration.data
+            val = min(100,max(0,self._pump_flow.data*self._purge_conversion))# convert to duty cycle
             for l in self._solid_line:
                 self._voltage_writer.write(l,0) #write relay_)cahannel and % on
             for l in self._purge_line:
                 self._voltage_writer.write(l,val) #write relay_)cahannel and % on            
-        if (tn-self._t_purge_on)> self._purge_duration:
+        if (tn-self._t_purge_on).total_seconds()> self._purge_duration.data:
             self._t_solid_on = tn
-            self._t_purge_on = tn + self._purge_freq
-            val = min(100,max(0,self._pump_flow*self._pump_conversion))# convert to duty cycle
+            self._t_purge_on = tn + self._purge_freq.data
+            val = min(100,max(0,self._pump_flow.data*self._pump_conversion))# convert to duty cycle
             for l in self._purge_line:
                 self._voltage_writer.write(l,0) #write relay_)cahannel and % on            
             for l in self._solid_line:

@@ -19,7 +19,7 @@ __version__ = '1.0.0'
 class IOCap(StringIO):
     def __init__(self, og_output):
         super().__init__()
-        self._output_path = os.path.expanduser('~') + '\\AppData\\Local\\AEM TestSuite\\logs\\'
+        self._output_path = os.path.expanduser('~') + '\\AppData\\Local\\AEM SprayDryer\\logs\\'
         self._og_output:TextIOWrapper = og_output
 
     def write(self, text:str):
@@ -43,7 +43,7 @@ if __name__ == '__main__':
         __icon_path__ = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),'..\\..\\res\\AEMlogo.ico'))
 
     app = QApplication(sys.argv)
-    window = MasterView('AEM TestSuite v' + str(__version__), QIcon(__icon_path__))
+    window = MasterView('AEM Spray Dryer v' + str(__version__), QIcon(__icon_path__))
     window.showMaximized()
     try:
         app.exec()

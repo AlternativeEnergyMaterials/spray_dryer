@@ -14,11 +14,6 @@ class TemperatureReader:
         self._all_furnace_models:list[list[ListModel[float]]] = []
         self._furnace_control_map:dict[ListModel[float],bool] = {}
 
-        self._humidifier_tc_time_model:ListModel[datetime] = ListModel(maxlen=config['humidifier-config']['max-data'])
-        self._all_humidifier_tcs:list[list[dict]] = []
-        self._all_humidifier_models:list[list[ListModel[float]]] = []
-        self._humidifier_control_map:dict[ListModel[float],bool] = {}
-
         #Load furnace thermocouples.
         for furnace in config['furnace-config']['furnaces']:
             if furnace is not None:
@@ -28,17 +23,8 @@ class TemperatureReader:
                 self._all_furnace_tcs.append(tcs)
                 self._all_furnace_models.append(models)
 
-        #Load humidifier thermocouples.
-        for humidifier in config['humidifier-config']['humidifiers']:
-            if humidifier is not None:
-                tcs,models,control_map = self.load_heaters(humidifier,config['humidifier-config']['max-data'])
-                for model in models:
-                    self._humidifier_control_map[model] = control_map[model]
-                self._all_humidifier_tcs.append(tcs)
-                self._all_humidifier_models.append(models)
-
         self._control_box = control_box
-        self._all_thermocouples:list[dict] = sum(self._all_furnace_tcs, []) + sum(self._all_humidifier_tcs, [])
+        self._all_thermocouples:list[dict] = sum(self._all_furnace_tcs, [])
         self._control_box.add_thermocouples(self._all_thermocouples)
 
     def load_heaters(self,heater,max_data):
@@ -62,7 +48,7 @@ class TemperatureReader:
     def read(self, time:datetime|None = None) -> list[float]:
         """Reads and stores the temperatures of all connected thermocouples in their relevant models.\n
         time - Read time to add to the time tracker model. If None, time will be calculated upon reading.\n
-        Returns - Tuple of lists. First list contains furnace temps, second list contains humidifier temps.\n
+        Returns -  list contains furnace temps.\n
         NOTE: If a thermocouple is disconnected the tmperature will read 0.0
         """
         try:
@@ -76,18 +62,16 @@ class TemperatureReader:
 
             #Calculate starting indeces of thermocouples.
             furnace_tc_index = 0
-            humidifier_tc_index = furnace_tc_index + len(sum(self._all_furnace_tcs, []))
 
             #Parse furnace temperatures.
-            for temperature, model in zip(temperatures[furnace_tc_index:humidifier_tc_index], sum(self._all_furnace_models, [])):
+            for temperature, model in zip(temperatures, sum(self._all_furnace_models, [])):
                 model.append(temperature)
 
             #Append read time of temperatures.
             #NOTE: The read time *must* only be updated after all other temperature models are updated.
             self._furnace_tc_time_model.append(read_time.timestamp())
-            self._humidifier_tc_time_model.append(read_time.timestamp())
 
-            return temperatures[furnace_tc_index:humidifier_tc_index], temperatures[humidifier_tc_index:]
+            return temperatures
         except Exception as e:
             print('In TemperatureReader: ' + str(e))
 
