@@ -60,7 +60,6 @@ class PiControlBox(ControlBox):
 
         self._read_client = read_client
         self._read_client.exec_command('pkill -f python')
-        self._read_client.exec_command('python readadc.py &')
         self._read_client.exec_command('python tcreader.py &')
         self._write_client = write_client
         if write_client != read_client:

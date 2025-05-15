@@ -60,9 +60,6 @@ class TemperatureReader:
             # print(thyme.time() - ntime)
             read_time = time if time is not None else datetime.now()
 
-            #Calculate starting indeces of thermocouples.
-            furnace_tc_index = 0
-
             #Parse furnace temperatures.
             for temperature, model in zip(temperatures, sum(self._all_furnace_models, [])):
                 model.append(temperature)

@@ -198,7 +198,7 @@ class TempCollectionWorker(QObject):
 
         #Collect temperature data.
         try:
-            furnace_temps,= self._temp_reader.read(read_time)
+            furnace_temps = self._temp_reader.read(read_time)
 
             #Check if any temps are too hot.
             if self._furnace_safety_model.data:
@@ -322,12 +322,12 @@ class MasterController(QObject):
         self._fc_restart_counter:int = 0
         self._alert_emails = self._config['watchdog-config']['alert-emails']
         self._smpt_client = Smtp2goClient(api_key=self._config['watchdog-config']['alert-api-key'])
-        self._t_solid_on = None
-        self._t_purge_on = None
-        self._pumps_active = SinglePointModel(bool(True))
-        self._pump_flow = SinglePointModel(float(0.0))
-        self._purge_freq = SinglePointModel(float(0.0))
-        self._purge_duration = SinglePointModel(float(0.0))
+        self._t_solid_on:float = None
+        self._t_purge_on:float = None
+        self._pumps_active:SinglePointModel[bool] = SinglePointModel(True)
+        self._pump_flow:SinglePointModel[float] = SinglePointModel(0.0)
+        self._purge_freq:SinglePointModel[float] = SinglePointModel(0.0)
+        self._purge_duration:SinglePointModel[float] = SinglePointModel(0.0)
         self._solid_line = []
         self._purge_line = []
 
@@ -553,21 +553,21 @@ class MasterController(QObject):
         self.request_flow_data.connect(self._flow_collection_worker.collect_data)
         self._flow_collection_thread.start()
 
-    def _pump_cycle(self,tn):
+    def _pump_cycle(self, tn:datetime):
         if self._t_solid_on is None and self._pumps_active:
-            self._t_solid_on = tn
-            self._t_purge_on = tn - self._purge_duration.data-1
-        if (tn-self._t_solid_on).total_seconds()> self._purge_freq.data:
-            self._t_purge_on = tn
-            self._t_solid_on = tn+self._purge_duration.data
+            self._t_solid_on = tn.timestamp()
+            self._t_purge_on = tn.timestamp() - self._purge_duration.data-1
+        if (tn.timestamp()-self._t_solid_on) > self._purge_freq.data:
+            self._t_purge_on = tn.timestamp()
+            self._t_solid_on = tn.timestamp()+self._purge_duration.data
             val = min(100,max(0,self._pump_flow.data*self._purge_conversion))# convert to duty cycle
             for l in self._solid_line:
                 self._voltage_writer.write(l,0) #write relay_)cahannel and % on
             for l in self._purge_line:
                 self._voltage_writer.write(l,val) #write relay_)cahannel and % on            
-        if (tn-self._t_purge_on).total_seconds()> self._purge_duration.data:
-            self._t_solid_on = tn
-            self._t_purge_on = tn + self._purge_freq.data
+        if (tn.timestamp()-self._t_purge_on)> self._purge_duration.data:
+            self._t_solid_on = tn.timestamp()
+            self._t_purge_on = tn.timestamp() + self._purge_freq.data
             val = min(100,max(0,self._pump_flow.data*self._pump_conversion))# convert to duty cycle
             for l in self._purge_line:
                 self._voltage_writer.write(l,0) #write relay_)cahannel and % on            

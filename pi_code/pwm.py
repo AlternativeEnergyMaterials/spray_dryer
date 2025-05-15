@@ -17,7 +17,7 @@ lock = threading.Lock()
 pwm_map:dict[int,int] = {} #[channel:pwm] where pwm is integer between 0 and 100 (percentage of ontime)
 
 def loop():
-    serPort = serial.Serial('ttyACM0',19200,timeout = 1)
+    serPort = serial.Serial('/dev/ttyACM0',19200,timeout = 1)
     while True:
         lock.acquire()
         current_pwm_map = pwm_map.copy()
@@ -26,14 +26,16 @@ def loop():
         #Turn on all relays/mosfets before pwm loop
         for channel in pwm_map.keys():
             if current_pwm_map[channel] > 0:
-                serPort.write('relay on ' +str(channel) + '\n\r')
+                cmd = 'relay on ' +str(channel) + '\n\r'
+                serPort.write(cmd.encode())
 
         #pwm loop to turn off relays after specified time
         for i in range(ITERATIONS+1): #loop from 0 to iterations (inclusive)
             time_passed = i/ITERATIONS * 100
             for channel in current_pwm_map.keys():
                 if time_passed > current_pwm_map[channel]: #If percentage of on time has passed
-                    serPort.write('relay off ' +str(channel) + '\n\r')
+                    cmd = 'relay off ' +str(channel) + '\n\r'
+                    serPort.write(cmd.encode())
             time.sleep(FREQUENCY)
 
 
