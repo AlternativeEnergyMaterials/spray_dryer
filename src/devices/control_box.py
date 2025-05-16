@@ -83,10 +83,6 @@ class PiControlBox(ControlBox):
         self._timer.timeout.connect(self._pwm_worker.update_pwms)
         self._timer.start(PWM_WRITE_FREQUENCY)
 
-    def ping_watchdog(self):
-        cmd = 'echo -n "watchdog 32257" | socat - UNIX-CONNECT:/tmp/watchdog.sock'
-        self._write_client.exec_command(cmd)
-
     def write_voltage(self, line: int, value:int):
         """Write a pwm value to a relay channel.\n
         line - Relay channel to write. Range varies.\n
@@ -129,15 +125,6 @@ class PiControlBox(ControlBox):
         except Exception as e:
             print(e)
             return []
-
-
-    def check_connection(self) -> bool:
-        try:
-            read_result = self._read_client.exec_command('echo alive!')
-            write_result = self._write_client.exec_command('echo alive!')
-            return 'alive!' in read_result and 'alive!' in write_result
-        except:
-            return False
         
     @Slot()
     def _restart_pwm(self):

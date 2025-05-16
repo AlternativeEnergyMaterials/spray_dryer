@@ -135,42 +135,6 @@ class WatchdogWorker(QObject):
         self._watchdog.write(signal)
         time.sleep(0.2)
 
-class PiWatchdogWorker(QObject):
-    """A worker object to send watchdog signals after verifying connection to the Raspberry Pi control box."""
-    def __init__(self, control_box:PiControlBox|None, watchdog:serial.Serial, furnace_safety_model:SinglePointModel[bool], parent:QObject = None):
-        super().__init__(parent=parent)
-        self._watchdog = watchdog
-        self._control_box = control_box
-        self._furnace_safety_model = furnace_safety_model
-
-    @Slot()
-    def signal_watchdog(self):
-        if self._control_box is not None:
-            alive = self._control_box.check_connection()
-        else:
-            alive = False
-
-        if self._furnace_safety_model.data:
-            if alive:
-                self._write_watchdog(PI_RELAY_SIG)
-            else:
-                self._furnace_safety_model.data = False
-                if not alive:
-                    print('Pi not responding')
-                    
-            estop_status = self._query_watchdog(PI_ESTOP_SIG).decode()
-            if '0' in estop_status:
-                self._furnace_safety_model.data = False
-                print('estop pressed')
-
-    def _write_watchdog(self, signal:bytearray):
-        self._watchdog.write(signal)
-        time.sleep(0.2)
-
-    def _query_watchdog(self, signal:bytearray):
-        self._watchdog.write(signal)
-        return self._watchdog.read_until(b'\n')
-
 class TempCollectionWorker(QObject):
     temp_restart_sig = Signal()
 
@@ -299,7 +263,6 @@ class MasterController(QObject):
     request_pressure_data = Signal(datetime)
     request_flow_data = Signal(datetime)
     request_download = Signal(str,str,str,str)
-    request_watchdog = Signal()
     check_influx = Signal()
     pause_profile = Signal()
 
@@ -315,9 +278,6 @@ class MasterController(QObject):
         self._temperature_reader = None
         self._voltage_writer = None
         self._mfc_reader = None
-        self._watchdog = None
-        self._watchdog_worker = None
-        self._watchdog_thread = None
         self._tc_restart_counter:int = 0
         self._fc_restart_counter:int = 0
         self._alert_emails = self._config['watchdog-config']['alert-emails']
@@ -398,25 +358,6 @@ class MasterController(QObject):
         self._download_data_worker.moveToThread(self._download_data_thread)
         self.request_download.connect(self._download_data_worker.download_data)
         self._download_data_thread.start()
-
-        #Create watchdog.
-        comport = 'COM' + self._config['watchdog-config']['com-port']
-        try:
-            self._watchdog = serial.Serial(port=comport)
-        except:
-            self._furnace_safety_model.data = False
-            self._watchdog = None
-            print('WARNING: Watchdog not found.')
-        else:
-            self._watchdog_thread = QThread(self)
-            if self._control_box_type == 'Pi':
-                self._watchdog_worker = PiWatchdogWorker(self._control_box, self._watchdog, self._furnace_safety_model)
-            else:
-                self._watchdog_worker = WatchdogWorker(self._watchdog, self.furnace_safety_model)
-            self._watchdog_worker.moveToThread(self._watchdog_thread)
-            self._watchdog_thread.finished.connect(self._watchdog_worker.deleteLater)
-            self.request_watchdog.connect(self._watchdog_worker.signal_watchdog)
-            self._watchdog_thread.start()
 
         #Initialize control loop.
         self._timer = QTimer(self)
@@ -523,9 +464,6 @@ class MasterController(QObject):
         #Ensure influx is running.
         if not self._influx_check_worker.is_running:
             self.check_influx.emit()
-
-        #Request watchdog signals.
-        self.request_watchdog.emit()
 
     def _initialize_data_collection(self):
         if self._temperature_reader is not None:
@@ -657,10 +595,6 @@ class MasterController(QObject):
         print('quitting influx check thread')
         self._influx_check_thread.quit()
         self._influx_check_thread.wait()
-        print('quitting watchdog thread')
-        if self._watchdog_thread is not None:
-            self._watchdog_thread.quit()
-            self._watchdog_thread.wait()
         if self._mfc_reader is not None:
             self._mfc_reader.close_mfcs()
         if self._control_box is not None:
