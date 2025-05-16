@@ -125,6 +125,7 @@ class ElFlowMFC(QObject):
     def reconnect(self, inst:propar.instrument):
         print('reconnecting',self._name)
         self._instrument = inst
+        self._instrument.writeParameter(12,18)
         self._disconnected = False
         self.setpoint = self._saved_setpoint
         self._unit = str(self._instrument.readParameter(129)).strip()
