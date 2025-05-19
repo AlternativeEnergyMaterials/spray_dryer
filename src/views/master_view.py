@@ -56,7 +56,10 @@ class MasterView(QMainWindow):
 
     def _init_UI(self):
         #Set application font.
-        self.setFont(QFont('Arial', 14))
+        if 'ui-config' in self._config:
+            self.setFont(QFont('Arial', self._config['ui-config']['font-size']))
+        else:
+            self.setFont(QFont('Arial', 14))
 
         #Create toolbar for page selection.
         self._toolbar = self.addToolBar("Page Selection")
