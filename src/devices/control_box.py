@@ -36,6 +36,7 @@ class PWMWorker(QObject):
             response = self._write_client.exec_command(cmd)
 
             if response != 'is_alive':
+                print(cmd)
                 print(response)
                 if self._restart_count < 2:
                     self.restart_sig.emit()

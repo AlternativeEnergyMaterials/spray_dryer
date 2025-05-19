@@ -502,7 +502,7 @@ class MasterController(QObject):
             for l in self._solid_line:
                 self._voltage_writer.write(l,0) #write relay_)cahannel and % on
             for l in self._purge_line:
-                self._voltage_writer.write(l,val) #write relay_)cahannel and % on            
+                self._voltage_writer.write(l,int(val)) #write relay_)cahannel and % on            
         if (tn.timestamp()-self._t_purge_on)> self._purge_duration.data:
             self._t_solid_on = tn.timestamp()
             self._t_purge_on = tn.timestamp() + self._purge_freq.data
@@ -510,7 +510,7 @@ class MasterController(QObject):
             for l in self._purge_line:
                 self._voltage_writer.write(l,0) #write relay_)cahannel and % on            
             for l in self._solid_line:
-                self._voltage_writer.write(l,val) #write relay_)cahannel and % on
+                self._voltage_writer.write(l,int(val)) #write relay_)cahannel and % on
 
     def _init_pumps(self,config):
         for pump in config['pump-config']['pumps']:
