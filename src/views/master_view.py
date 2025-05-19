@@ -83,7 +83,7 @@ class MasterView(QMainWindow):
 
         #Add pump flow input.
         self._pump_flow_label = QLabel(self)
-        self._pump_flow_label.setText('Pump Flow (mL/s)')
+        self._pump_flow_label.setText('Pump Flow (mL/min)')
         self._layout.addWidget(self._pump_flow_label,0,1,1,1)
 
         self._pump_flow_input = QLineEdit(self)
