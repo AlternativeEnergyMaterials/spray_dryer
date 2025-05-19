@@ -187,6 +187,8 @@ class MasterView(QMainWindow):
         self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
         self._controller._purge_freq.data = float(self._purge_freq_input.text())
         self._controller._purge_duration.data = float(self._purge_duration_input.text())
+        self._controller._t_solid_on = None
+        self._controller._t_purge_on = None
         self._controller._pumps_active.data = True
         self._pump_button.setText('Stop Pump')
         self._pump_button.clicked.disconnect()
