@@ -106,10 +106,10 @@ class MasterView(QMainWindow):
         self._purge_duration_input.setText('0.0')
         self._layout.addWidget(self._purge_duration_input,1,3,1,1)
 
-        self._run_pump = QPushButton()
-        self._run_pump.setText('Run Pump')
-        self._run_pump.clicked.connect(self._set_flow)
-        self._layout.addWidget(self._run_pump,0,4,1,1)
+        self._pump_button = QPushButton()
+        self._pump_button.setText('Run Pump')
+        self._pump_button.clicked.connect(self._run_pump)
+        self._layout.addWidget(self._pump_button,0,4,1,1)
 
         #Add testname input.
         self._testname_input = QLineEdit(self)
@@ -171,16 +171,37 @@ class MasterView(QMainWindow):
         self._controller.pause_profile.connect(self._pause_profile)
         self._layout.addWidget(self._profile_view,2,6,1,4)
 
-    def _set_flow(self):
+    # def _set_flow(self):
+    #     self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
+    #     self._controller._purge_freq.data = float(self._purge_freq_input.text())
+    #     self._controller._purge_duration.data = float(self._purge_duration_input.text())
+    #     if  self._pump_button.text() == 'Run Pump':
+    #         self._controller._pumps_active.data = True
+    #         self._pump_button.setText('Stop Pump')
+    #     elif self._pump_button.text() == 'Stop Pump':
+    #         self._controller._pumps_active.data = False
+    #         self._pump_button.setText('Run Pump')
+
+    @Slot()
+    def _run_pump(self):
         self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
         self._controller._purge_freq.data = float(self._purge_freq_input.text())
         self._controller._purge_duration.data = float(self._purge_duration_input.text())
-        if  self._run_pump.text() == 'Run Pump':
-            self._controller._pumps_active.data = True
-            self._run_pump.setText('Stop Pump')
-        elif self._run_pump.text() == 'Stop Pump':
-            self._controller._pumps_active.data = False
-            self._run_pump.setText('Run Pump')
+        self._controller._pumps_active.data = True
+        self._pump_button.setText('Stop Pump')
+        self._pump_button.clicked.disconnect()
+        self._pump_button.clicked.connect(self._stop_pump)
+
+    @Slot()
+    def _stop_pump(self):
+        self._controller._pumps_active.data = False
+        for l in self._controller._solid_line:
+            self._controller._voltage_writer.write(l,0)
+        for l in self._controller._purge_line:
+            self._controller._voltage_writer.write(l,0)
+        self._pump_button.setText('Run Pump')
+        self._pump_button.clicked.disconnect()
+        self._pump_button.clicked.connect(self._run_pump)
 
     @Slot()
     def _start_recording(self):
