@@ -4,7 +4,6 @@ from PySide6.QtCore import QObject, QThread, Slot, Signal, QTimer
 from PySide6.QtWidgets import QDialog
 from devices import PiControlBox,TemperatureReader, SSHClient,  MFCReader
 from devices import PWMWriter
-#from devices import RelayWriter #TODO put lifters back in
 from models import SinglePointModel, ListModel
 from controllers import TemperatureController
 from widgets import TestSelectionDialog, WarningDialog
@@ -12,7 +11,6 @@ from datetime import datetime
 from influxdb_client import InfluxDBClient, Point, WriteApi
 from influxdb_client.client.write_api import SYNCHRONOUS
 import serial
-from pyvisa import ResourceManager
 import time
 from multiprocessing import Process
 import pandas as pd
@@ -22,7 +20,7 @@ CONTROL_LOOP_FREQUENCY = 1000 #Milliseconds between control loop calls.
 
 BUCKET = 'TESTS' #Write bucket for influx data.
 INFLUX_FILE = os.path.expanduser('~') + '\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\startInflux.vbs'
-TESTS_PATH = os.path.expanduser('~') + '\\AppData\\Local\\AEM TestSuite\\Tests\\'
+TESTS_PATH = os.path.expanduser('~') + '\\AppData\\Local\\AEM SprayDyer\\Tests\\'
 
 SECOND_RELAY_SIG = bytearray([0x04, 0x07, 0x03, 0x08, 0x02]) #signal to reset watchdog timer for second relay (furnace)
 PI_RELAY_SIG = b'reset\n'
@@ -265,6 +263,7 @@ class MasterController(QObject):
     request_download = Signal(str,str,str,str)
     check_influx = Signal()
     pause_profile = Signal()
+    purge_finished = Signal()
 
     def __init__(self, config:dict, furnace_controllers:ListModel[TemperatureController], parent:QObject = None):
         """config - Dictionary representing the full config file."""
@@ -284,7 +283,8 @@ class MasterController(QObject):
         self._smpt_client = Smtp2goClient(api_key=self._config['watchdog-config']['alert-api-key'])
         self._t_solid_on:float = None
         self._t_purge_on:float = None
-        self._pumps_active:SinglePointModel[bool] = SinglePointModel(True)
+        self._pumps_active:SinglePointModel[bool] = SinglePointModel(False)
+        self._purge_active:SinglePointModel[bool] = SinglePointModel(False)
         self._pump_flow:SinglePointModel[float] = SinglePointModel(0.0)
         self._purge_freq:SinglePointModel[float] = SinglePointModel(0.0)
         self._purge_duration:SinglePointModel[float] = SinglePointModel(0.0)
@@ -501,17 +501,36 @@ class MasterController(QObject):
                 self._t_solid_on = tn.timestamp()+self._purge_duration.data
                 val = min(100,max(0,self._pump_flow.data*self._purge_conversion))# convert to duty cycle
                 for l in self._solid_line:
-                    self._voltage_writer.write(l,0) #write relay_)cahannel and % on
+                    self._voltage_writer.write(l,0) #write relay channel and % on 
                 for l in self._purge_line:
-                    self._voltage_writer.write(l,int(val)) #write relay_)cahannel and % on            
+                    self._voltage_writer.write(l,int(val)) #write relay channel and % on 
             if (tn.timestamp()-self._t_purge_on)> self._purge_duration.data:
                 self._t_solid_on = tn.timestamp()
                 self._t_purge_on = tn.timestamp() + self._purge_freq.data
                 val = min(100,max(0,self._pump_flow.data*self._pump_conversion))# convert to duty cycle
                 for l in self._purge_line:
-                    self._voltage_writer.write(l,0) #write relay_)cahannel and % on            
+                    self._voltage_writer.write(l,0) #write relay channel and % on 
                 for l in self._solid_line:
-                    self._voltage_writer.write(l,int(val)) #write relay_)cahannel and % on
+                    self._voltage_writer.write(l,int(val)) #write relay channel and % on 
+        elif self._purge_active.data:
+            if self._t_solid_on is None:
+                self._t_solid_on = tn.timestamp()
+                self._t_purge_on = tn.timestamp()
+                val = min(100,max(0,self._pump_flow.data*self._purge_conversion))# convert to duty cycle
+                try:
+                    for l in self._solid_line:
+                        self._voltage_writer.write(l,int(val)) #write relay channel and % on 
+                    for l in self._purge_line:
+                        self._voltage_writer.write(l,int(val)) #write relay channel and % on 
+                except Exception as e:
+                    print('Cant write voltage because voltage writer not loaded')
+                    print(e)
+            if (tn.timestamp()-self._t_solid_on) > self._purge_duration.data:
+                self.purge_finished.emit()
+                # for l in self._purge_line:
+                #     self._voltage_writer.write(l,0) #write relay channel and % on            
+                # for l in self._solid_line:
+                #     self._voltage_writer.write(l,0) #write relay channel and % on 
 
     def _init_pumps(self,config):
         for pump in config['pump-config']['pumps']:
