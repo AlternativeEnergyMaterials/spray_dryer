@@ -33,6 +33,7 @@ class MasterView(QMainWindow):
         self._controller = MasterController(self._config, self._furnace_controllers, self)
         self._controller._download_data_worker.download_started.connect(self._download_started)
         self._controller._download_data_worker.download_finished.connect(self._download_finished)
+        self._controller.purge_finished.connect(self._stop_purge)
         
 
         #Initialize UI elements.
@@ -110,6 +111,11 @@ class MasterView(QMainWindow):
         self._pump_button.setText('Run Pump')
         self._pump_button.clicked.connect(self._run_pump)
         self._layout.addWidget(self._pump_button,0,4,1,1)
+
+        self._purge_button = QPushButton()
+        self._purge_button.setText('Run Purge')
+        self._purge_button.clicked.connect(self._run_purge)
+        self._layout.addWidget(self._purge_button,1,4,1,1)
 
         #Add testname input.
         self._testname_input = QLineEdit(self)
@@ -195,6 +201,17 @@ class MasterView(QMainWindow):
         self._pump_button.clicked.connect(self._stop_pump)
 
     @Slot()
+    def _run_purge(self):
+        self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
+        self._controller._purge_duration.data = float(self._purge_duration_input.text())
+        self._controller._t_solid_on = None
+        self._controller._t_purge_on = None
+        self._controller._purge_active.data = True
+        self._purge_button.setText('Stop Purge')
+        self._purge_button.clicked.disconnect()
+        self._purge_button.clicked.connect(self._stop_purge)
+
+    @Slot()
     def _stop_pump(self):
         self._controller._pumps_active.data = False
         for l in self._controller._solid_line:
@@ -204,6 +221,22 @@ class MasterView(QMainWindow):
         self._pump_button.setText('Run Pump')
         self._pump_button.clicked.disconnect()
         self._pump_button.clicked.connect(self._run_pump)
+
+    @Slot()
+    def _stop_purge(self):
+        self._controller._purge_active.data = False
+        self._purge_button.setText('Run Purge')
+        self._purge_button.clicked.disconnect()
+        self._purge_button.clicked.connect(self._run_purge)
+        try:
+            for l in self._controller._solid_line:
+                self._controller._voltage_writer.write(l,0)
+            for l in self._controller._purge_line:
+                self._controller._voltage_writer.write(l,0)
+        except Exception as e:
+            print('Cant write voltage because voltage writer not loaded')
+            print(e)
+        
 
     @Slot()
     def _start_recording(self):
