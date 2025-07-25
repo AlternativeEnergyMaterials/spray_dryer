@@ -107,44 +107,52 @@ class MasterView(QMainWindow):
         self._purge_duration_input.setText('0.0')
         self._layout.addWidget(self._purge_duration_input,1,3,1,1)
 
+        self._reverse_purge_duration_label = QLabel(self)
+        self._reverse_purge_duration_label.setText('Reverse Purge Duration (s)')
+        self._layout.addWidget(self._reverse_purge_duration_label,0,4,1,1)
+
+        self._reverse_purge_duration_input = QLineEdit(self)
+        self._reverse_purge_duration_input.setText('0.0')
+        self._layout.addWidget(self._reverse_purge_duration_input,1,4,1,1)
+
         self._pump_button = QPushButton()
         self._pump_button.setText('Run Pump')
         self._pump_button.clicked.connect(self._run_pump)
-        self._layout.addWidget(self._pump_button,0,4,1,1)
+        self._layout.addWidget(self._pump_button,0,5,1,1)
 
         self._purge_button = QPushButton()
         self._purge_button.setText('Run Purge')
         self._purge_button.clicked.connect(self._run_purge)
-        self._layout.addWidget(self._purge_button,1,4,1,1)
+        self._layout.addWidget(self._purge_button,1,5,1,1)
 
         #Add testname input.
         self._testname_input = QLineEdit(self)
         self._testname_input.setPlaceholderText('Test Name')
-        self._layout.addWidget(self._testname_input,0,5,1,1)
+        self._layout.addWidget(self._testname_input,1,6,1,1)
 
         #Add measurement select.
         self._measurement_select = QPushButton(self)
         self._measurement_select.setText('Select Existing Test')
         self._measurement_select.clicked.connect(self._update_testname_input)
-        self._layout.addWidget(self._measurement_select,0,6,1,1)
+        self._layout.addWidget(self._measurement_select,1,8,1,1)
 
         #Add start recording button.
         self._recording_button = QPushButton(self)
         self._recording_button.setText('Start Recording')
         self._recording_button.clicked.connect(self._start_recording)
-        self._layout.addWidget(self._recording_button,0,7,1,1)
+        self._layout.addWidget(self._recording_button,0,8,1,1)
 
         #Add download data button.
         self._download_data_button = QPushButton(self)
         self._download_data_button.setText('Download Data')
         self._download_data_button.clicked.connect(self._controller.select_measurement)
-        self._layout.addWidget(self._download_data_button,0,8,1,1)
+        self._layout.addWidget(self._download_data_button,0,7,1,1)
 
         #Add reload mfc button.
         self._reload_mfc_button = QPushButton(self)
         self._reload_mfc_button.setText('Reload MFCs')
         self._reload_mfc_button.clicked.connect(self._controller.mfc_reader.reload)
-        self._layout.addWidget(self._reload_mfc_button,0,9,1,1)
+        self._layout.addWidget(self._reload_mfc_button,1,7,1,1)
 
         #Add multiplot view.
         self._multi_plot = MultiPlotWidget(self)
@@ -193,6 +201,7 @@ class MasterView(QMainWindow):
         self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
         self._controller._purge_freq.data = float(self._purge_freq_input.text())
         self._controller._purge_duration.data = float(self._purge_duration_input.text())
+        self._controller._reverse_purge_duration.data = float(self._reverse_purge_duration_input.text())
         self._controller._t_solid_on = None
         self._controller._t_purge_on = None
         self._controller._pumps_active.data = True
@@ -204,6 +213,7 @@ class MasterView(QMainWindow):
     def _run_purge(self):
         self._controller._pump_flow.data = float(self._pump_flow_input.text()) #flow in mL/s
         self._controller._purge_duration.data = float(self._purge_duration_input.text())
+        self._controller._reverse_purge_duration.data = float(self._reverse_purge_duration_input.text())
         self._controller._t_solid_on = None
         self._controller._t_purge_on = None
         self._controller._purge_active.data = True
