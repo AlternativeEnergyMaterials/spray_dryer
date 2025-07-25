@@ -36,7 +36,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='AEM SprayDyer',
+    name='AEM SprayDryer',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
