@@ -496,22 +496,20 @@ class MasterController(QObject):
             if self._t_solid_on is None:
                 self._t_solid_on = tn.timestamp()
                 self._t_purge_on = tn.timestamp() - self._purge_duration.data-1
+                val = min(100,max(0,self._pump_flow.data*self._pump_conversion))# convert to duty cycle
+                for l in self._solid_line:
+                    self._voltage_writer.write(l,int(val)) #write relay channel and % on
             if (tn.timestamp()-self._t_solid_on) > self._purge_freq.data:
                 self._t_purge_on = tn.timestamp()
                 self._t_solid_on = tn.timestamp()+self._purge_duration.data
                 val = min(100,max(0,self._pump_flow.data*self._purge_conversion))# convert to duty cycle
-                for l in self._solid_line:
-                    self._voltage_writer.write(l,0) #write relay channel and % on 
                 for l in self._purge_line:
                     self._voltage_writer.write(l,int(val)) #write relay channel and % on 
             if (tn.timestamp()-self._t_purge_on)> self._purge_duration.data:
                 self._t_solid_on = tn.timestamp()
                 self._t_purge_on = tn.timestamp() + self._purge_freq.data
-                val = min(100,max(0,self._pump_flow.data*self._pump_conversion))# convert to duty cycle
                 for l in self._purge_line:
                     self._voltage_writer.write(l,0) #write relay channel and % on 
-                for l in self._solid_line:
-                    self._voltage_writer.write(l,int(val)) #write relay channel and % on 
         elif self._purge_active.data:
             if self._t_solid_on is None:
                 self._t_solid_on = tn.timestamp()
