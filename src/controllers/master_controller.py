@@ -496,11 +496,11 @@ class MasterController(QObject):
         if self._pumps_active.data:
             if self._t_solid_on is None: #Just starting the pump, begin with reverse purge, then start main solids pump
                 val = min(100,max(0,self._pump_flow.data*self._pump_conversion))# convert to duty cycle
-                if self._t_purge_on is None and self._reverse_purge_duration.data>0:
+                if self._t_purge_on is None:
                     self._t_purge_on = tn.timestamp()
                     for l in self._purge_line:
                         self._voltage_writer.write(l,int(val)) #write relay channel and % on 
-                elif self._reverse_purge_duration.data<=0 or (tn.timestamp()-self._t_purge_on)> self._reverse_purge_duration.data.data:
+                elif (tn.timestamp()-self._t_purge_on)> self._reverse_purge_duration.data:
                     self._t_solid_on = tn.timestamp()
                     for l in self._solid_line:
                         self._voltage_writer.write(l,int(val)) #write relay channel and % on
