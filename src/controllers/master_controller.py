@@ -532,7 +532,7 @@ class MasterController(QObject):
                     except Exception as e:
                         print('Cant write voltage because voltage writer not loaded')
                         print(e)
-            if (tn.timestamp()-self._t_solid_on) > self._purge_duration.data:
+            elif (tn.timestamp()-self._t_solid_on) > self._purge_duration.data:
                 self.purge_finished.emit()
 
     def _init_pumps(self,config):
